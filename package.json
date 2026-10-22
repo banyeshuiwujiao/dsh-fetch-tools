@@ -13,9 +13,23 @@
     "index.mjs",
     "cordis.patch.yml"
   ],
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
-  }
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "fetch",
+    "http"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
 }
