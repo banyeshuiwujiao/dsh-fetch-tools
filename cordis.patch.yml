@@ -1,0 +1,20 @@
+# ============================================================================
+# dsh-fetch-tools —— DSH bundle patch
+# ============================================================================
+# 注册两个一等公民工具 fetch_json / fetch_text：直接走 fetch，无需子进程，
+# 零冷启动开销。
+#
+# 这一行 insert 就是「启用」本身：本包被列进 profile 的 dsh.profile.bundles
+# 时才会应用，所以开关归插件清单，profile 侧不需要再写任何条目。
+#
+# 没有 config 是有意的：index.mjs 的 apply(ctx, config) 把 config 原样传给
+# createFetchJsonTool/createFetchTextTool 的 pluginOpts，但两个工具体内都
+# 没有读过 pluginOpts —— 超时取的是模块常量 DEFAULT_TIMEOUT_MS(30000) 或
+# 每次调用的 args.timeoutMs。所以以前 profile 里那行 `timeoutMs: 30000`
+# 是个不起作用的键。真要改默认超时，去改 DEFAULT_TIMEOUT_MS 或让工具读
+# pluginOpts，别在这里加回来。
+# ============================================================================
+
+- insert:
+    - id: dsh-fetch-tools
+      name: dsh-fetch-tools

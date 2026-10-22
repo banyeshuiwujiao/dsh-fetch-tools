@@ -1,0 +1,21 @@
+{
+  "name": "dsh-fetch-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH (DeepSeek Harness) first-class HTTP API fetch tools: fetch_json and fetch_text.",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
