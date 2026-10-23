@@ -1,7 +1,7 @@
 /**
  * dsh-fetch-tools
  * ---------------
- * DeepSeek Harness (DSH) 一等公民网络请求工具：`fetch_json` 与 `fetch_text`。
+ * DeepSeek Harness (DSH) 一等公民网络请求工具：`fetch_json`。
  *
  * 解决痛点：
  * 1. 结构化 API 调用（如 OpenRouter / Hugging Face / GitHub REST API）无需沉沦到
@@ -246,157 +246,8 @@ export function createFetchJsonTool(pluginOpts = {}) {
 }
 
 /**
- * fetch_text 工具规格
+ * 本插件提供 `fetch_json`（结构化 API 抓取 + select 分支抽取 + savePath 落盘）。
  */
-export function createFetchTextTool(pluginOpts = {}) {
-  return {
-    name: 'fetch_text',
-    description:
-      '一等公民 HTTP 纯文本/源码请求工具 —— 快速拉取原始文本、Markdown 文档、源码文件、YAML 或纯文本 API。' +
-      '支持自定义请求头、查询参数、超时控制、最大字符截断，以及直接将文本保存到本地文件。',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', description: '目标 HTTP/HTTPS URL。' },
-        method: {
-          type: 'string',
-          enum: ['GET', 'POST'],
-          description: 'HTTP 方法，默认为 GET。',
-        },
-        params: {
-          type: 'object',
-          description: 'URL Query 查询参数键值对。',
-        },
-        headers: {
-          type: 'object',
-          description: '自定义 HTTP 请求头。',
-        },
-        body: {
-          type: 'string',
-          description: '请求体内容。',
-        },
-        savePath: {
-          type: 'string',
-          description: '可选：将响应内容直接保存到指定本地文件路径（绝对或相对路径）。',
-        },
-        timeoutMs: {
-          type: 'number',
-          description: '请求超时时间（毫秒），默认为 30000。',
-        },
-        maxChars: {
-          type: 'number',
-          description: '返回给模型的最大字符数，默认 40000。超出部分将截断并提示。',
-        },
-      },
-      required: ['url'],
-      additionalProperties: false,
-    },
-    output: {
-      schema: {
-        type: 'object',
-        properties: {
-          text: { type: 'string' },
-          status: { type: 'number' },
-          savedPath: { type: 'string' },
-        },
-        required: ['text'],
-        additionalProperties: false,
-      },
-      render(_args, value) {
-        return [{ type: 'text', text: String(value?.text || '') }]
-      },
-    },
-    presentCall(args) {
-      const method = (args?.method || 'GET').toUpperCase()
-      return { card: 'terminal', title: `fetch_text ${method} ${args?.url || ''}` }
-    },
-    presentResult(args, result) {
-      try {
-        const text = ((result && result.content) || [])
-          .filter((block) => block && block.type === 'text')
-          .map((block) => block.text)
-          .join('\n')
-        return {
-          card: 'terminal',
-          title: `fetch_text ${(args?.method || 'GET').toUpperCase()} ${args?.url || ''}`,
-          output: text,
-          exitCode: result && result.isError ? 1 : 0,
-        }
-      } catch {
-        return undefined
-      }
-    },
-    async execute(args, exec) {
-      const startTime = Date.now()
-      const method = (args.method || 'GET').toUpperCase()
-      const timeoutMs = Number(args.timeoutMs) > 0 ? Number(args.timeoutMs) : DEFAULT_TIMEOUT_MS
-      const maxChars = Number(args.maxChars) > 0 ? Number(args.maxChars) : DEFAULT_MAX_CHARS
-
-      let targetUrl
-      try {
-        targetUrl = buildUrl(args.url, args.params)
-      } catch (err) {
-        throw new Error(`无效的请求 URL: ${args.url} (${err.message})`)
-      }
-
-      const headers = {
-        'User-Agent': DEFAULT_USER_AGENT,
-        ...(args.headers || {}),
-      }
-
-      const signal = exec?.signal
-        ? AbortSignal.any([exec.signal, AbortSignal.timeout(timeoutMs)])
-        : AbortSignal.timeout(timeoutMs)
-
-      let res
-      try {
-        res = await fetch(targetUrl, {
-          method,
-          headers,
-          body: args.body,
-          signal,
-          redirect: 'follow',
-        })
-      } catch (err) {
-        if (err.name === 'TimeoutError') {
-          throw new Error(`fetch_text 请求超时 (${timeoutMs}ms): ${targetUrl}`)
-        }
-        throw new Error(`fetch_text 网络请求失败: ${err.message}`)
-      }
-
-      const elapsed = Date.now() - startTime
-      const rawText = await res.text()
-
-      let savedFilePath = undefined
-      if (args.savePath) {
-        const fullSavePath = resolve(process.cwd(), args.savePath)
-        mkdirSync(dirname(fullSavePath), { recursive: true })
-        writeFileSync(fullSavePath, rawText, 'utf8')
-        savedFilePath = fullSavePath
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          `fetch_text HTTP ${res.status} ${res.statusText} (${elapsed}ms)\n` +
-            `URL: ${targetUrl}\n` +
-            `响应体:\n${clip(rawText, 2000)}` +
-            (savedFilePath ? `\n(已保存至文件: ${savedFilePath})` : ''),
-        )
-      }
-
-      let outputHeader = `[HTTP ${res.status} OK | ${elapsed}ms | ${rawText.length} 字符]`
-      if (savedFilePath) {
-        outputHeader += `\n已保存至文件: ${savedFilePath}`
-      }
-
-      return {
-        text: `${outputHeader}\n\n${clip(rawText, maxChars)}`,
-        status: res.status,
-        ...(savedFilePath ? { savedPath: savedFilePath } : {}),
-      }
-    },
-  }
-}
 
 export const name = 'dsh-fetch-tools'
 export const inject = ['tools']
@@ -404,15 +255,12 @@ export const inject = ['tools']
 /** Cordis 插件入口 */
 export function apply(ctx, config = {}) {
   const jsonTool = createFetchJsonTool(config)
-  const textTool = createFetchTextTool(config)
 
   ctx.inject(['tools'], (scoped) => {
     const d1 = scoped.tools.register(jsonTool)
-    const d2 = scoped.tools.register(textTool)
     ctx.on('dispose', () => {
       try {
         if (typeof d1 === 'function') d1()
-        if (typeof d2 === 'function') d2()
       } catch {}
     })
   })

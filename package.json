@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "DSH (DeepSeek Harness) first-class HTTP API fetch tools: fetch_json and fetch_text.",
+  "description": "DSH (DeepSeek Harness) first-class HTTP API fetch tool: fetch_json.",
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",

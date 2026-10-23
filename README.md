@@ -1,10 +1,14 @@
 # dsh-fetch-tools
 
-DSH（DeepSeek Harness）的一等公民 HTTP 抓取工具：**`fetch_json`** 与 **`fetch_text`**。
+DSH（DeepSeek Harness）的一等公民 HTTP 抓取工具：**`fetch_json`**。
 
 直接走 `fetch`，不起子进程，零冷启动开销。
 
-## 两个工具
+> 原始纯文本/源码抓取（Markdown、YAML、raw 文件等）已统一交由内置的
+> **`web_fetch`** 工具负责（参数等价、零冷启动）。本插件因此只保留
+> 结构化 API 抓取能力 `fetch_json`，避免与 `web_fetch` 重复。
+
+## 工具
 
 ### `fetch_json`
 
@@ -19,10 +23,6 @@ HTTP JSON API 请求，返回结构化 JSON。
 - `savePath` — 把**原始响应**直接落盘
 - `timeoutMs` — 超时（默认 30000）
 - `maxChars` — 正文裁剪上限（默认 40000，超出时提示改用 `savePath`）
-
-### `fetch_text`
-
-HTTP 纯文本 / Markdown / YAML / 源码拉取，参数同上但没有 `select`。
 
 ## 装到运行时
 

@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { createFetchJsonTool, createFetchTextTool, name, inject } from '../index.mjs'
+import { createFetchJsonTool, name, inject } from '../index.mjs'
 
 let passed = 0
 async function check(label, fn) {
@@ -46,14 +46,11 @@ await check('name 与 inject 符合 DSH 插件约定', () => {
   assert.deepEqual(inject, ['tools'])
 })
 
-await check('两个工具的名字与参数 schema 齐备', () => {
+await check('fetch_json 工具的名字与参数 schema 齐备', () => {
   const json = createFetchJsonTool()
-  const text = createFetchTextTool()
   assert.equal(json.name, 'fetch_json')
-  assert.equal(text.name, 'fetch_text')
   assert.equal(json.parameters.type, 'object')
   assert.ok(json.parameters.properties.url, 'fetch_json 缺 url 参数')
-  assert.ok(text.parameters.properties.url, 'fetch_text 缺 url 参数')
   assert.ok(json.parameters.properties.select, 'fetch_json 缺 select 参数')
   assert.ok(json.parameters.properties.savePath, 'fetch_json 缺 savePath 参数')
 })
@@ -193,28 +190,6 @@ await check('网络异常被翻译成可读错误', async () => {
 await check('非法 URL 被拦下（不发出请求）', async () => {
   const tool = createFetchJsonTool()
   await assert.rejects(() => tool.execute({ url: 'not-a-url' }), /无效的请求 URL/)
-})
-
-console.log('fetch_text')
-
-await check('fetch_text 把正文带出来', async () => {
-  const { calls, restore } = stubFetch({ status: 200, body: 'hello world' })
-  try {
-    const tool = createFetchTextTool()
-    const out = await tool.execute({ url: 'https://x.test/doc.md' })
-    assert.equal(calls.length, 1)
-    assert.ok(out.text.includes('hello world'), '正文没带出')
-    assert.equal(out.status, 200)
-  } finally { restore() }
-})
-
-await check('fetch_text 也带自定义请求头', async () => {
-  const { calls, restore } = stubFetch({ status: 200, body: 'hi' })
-  try {
-    const tool = createFetchTextTool()
-    await tool.execute({ url: 'https://x.test/a.md', headers: { 'X-Test': '1' } })
-    assert.equal(calls[0].init.headers['X-Test'], '1')
-  } finally { restore() }
 })
 
 console.log(`\n✅ ${passed} 个用例通过`)
