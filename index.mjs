@@ -40,6 +40,40 @@ function getByPath(obj, pathStr) {
   return current
 }
 
+/** 取路径的「叶子」名（用于多字段抽取时的键名），如 a.b.c / a[0].b → c */
+function leafOf(pathStr) {
+  const normalized = String(pathStr).replace(/\[(\w+)\]/g, '.$1').replace(/^\./, '')
+  const parts = normalized.split('.').filter((p) => p.length > 0)
+  return parts.length ? parts[parts.length - 1] : String(pathStr)
+}
+
+/**
+ * 应用 select：
+ * - 单字段（如 "data.endpoints"）→ 直接返回该分支的值（保持旧行为，向后兼容）。
+ * - 多字段（逗号分隔，如 "name,stargazers_count,language"）→ 返回对象，
+ *   每个字段以「叶子名」为键；键冲突时回退为完整路径，避免覆盖。
+ * 字段非法（空白）会被忽略；当 select 解析为空时返回整个 parsed。
+ */
+function applySelect(parsed, select) {
+  const segments = String(select)
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  if (segments.length === 0) return parsed
+  if (segments.length === 1) return getByPath(parsed, segments[0])
+
+  const result = {}
+  const occupied = new Set()
+  for (const seg of segments) {
+    const value = getByPath(parsed, seg)
+    let key = leafOf(seg)
+    if (occupied.has(key)) key = seg // 叶子键冲突 → 用完整路径兜底
+    occupied.add(key)
+    result[key] = value
+  }
+  return result
+}
+
 function buildUrl(rawUrl, params) {
   const parsed = new URL(rawUrl)
   if (params && typeof params === 'object') {
@@ -61,7 +95,7 @@ export function createFetchJsonTool(pluginOpts = {}) {
     description:
       '一等公民 HTTP JSON 请求工具 —— 直接请求任何 REST API 并返回结构化 JSON。' +
       '支持指定 HTTP 方法、自定义请求头、查询参数、请求体；' +
-      '支持 select 参数仅提取所需子属性（如 "data.endpoints"），防止大响应吃爆上下文；' +
+      '支持 select 参数仅提取所需子属性（单字段如 "data.endpoints"，或多字段逗号分隔如 "name,stargazers_count,language"，多字段返回一个以叶子名为键的对象），防止大响应吃爆上下文；' +
       '支持 savePath 直接将结果保存到本地文件。',
     parameters: {
       type: 'object',
@@ -85,7 +119,7 @@ export function createFetchJsonTool(pluginOpts = {}) {
         },
         select: {
           type: 'string',
-          description: '可选：提取结果的嵌套属性路径（如 "data.endpoints" 或 "results.0"），只输出关心的数据，大幅节省 token。',
+          description: '可选：提取结果的嵌套属性路径。单字段如 "data.endpoints" 或 "results.0"；也支持多字段逗号分隔如 "name,stargazers_count,language"，多字段时返回一个以各字段叶子名为键的对象（叶子键冲突时回退为完整路径）。只输出关心的数据，大幅节省 token。',
         },
         savePath: {
           type: 'string',
@@ -220,7 +254,7 @@ export function createFetchJsonTool(pluginOpts = {}) {
 
       let payloadToOutput = parsed
       if (parseOk && args.select) {
-        payloadToOutput = getByPath(parsed, args.select)
+        payloadToOutput = applySelect(parsed, args.select)
       }
 
       const formattedJson = parseOk
@@ -232,7 +266,8 @@ export function createFetchJsonTool(pluginOpts = {}) {
         outputHeader += `\n已保存至文件: ${savedFilePath}`
       }
       if (args.select) {
-        outputHeader += `\n[已筛选分支: "${args.select}"]`
+        const fieldCount = String(args.select).split(',').map((s) => s.trim()).filter(Boolean).length
+        outputHeader += `\n[已筛选 ${fieldCount} 个分支: "${args.select}"]`
       }
 
       const outputText = `${outputHeader}\n\n${clip(formattedJson, maxChars)}`

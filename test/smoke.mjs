@@ -112,6 +112,30 @@ await check('select 只输出目标分支', async () => {
   } finally { restore() }
 })
 
+await check('select 多字段返回以叶子名为键的对象', async () => {
+  const body = JSON.stringify({ name: 'camofox', stargazers_count: 12002, language: 'JavaScript', other: 9 })
+  const { restore } = stubFetch({ status: 200, body })
+  try {
+    const tool = createFetchJsonTool()
+    const out = await tool.execute({ url: 'https://x.test', select: 'name,stargazers_count,language' })
+    const json = JSON.parse(out.text.slice(out.text.indexOf('{')))
+    assert.deepEqual(json, { name: 'camofox', stargazers_count: 12002, language: 'JavaScript' }, '多字段未正确聚合')
+    assert.ok(!out.text.includes('"other"'), '多字段仍混进了未选分支')
+    assert.ok(out.text.includes('[已筛选 3 个分支'), '输出头没标注字段数')
+  } finally { restore() }
+})
+
+await check('select 多字段叶子键冲突时回退为完整路径', async () => {
+  const body = JSON.stringify({ a: { id: 1 }, b: { id: 2 } })
+  const { restore } = stubFetch({ status: 200, body })
+  try {
+    const tool = createFetchJsonTool()
+    const out = await tool.execute({ url: 'https://x.test', select: 'a.id,b.id' })
+    const json = JSON.parse(out.text.slice(out.text.indexOf('{')))
+    assert.deepEqual(json, { id: 1, 'b.id': 2 }, '叶子键冲突未回退为完整路径')
+  } finally { restore() }
+})
+
 await check('输出带状态头与格式化 JSON', async () => {
   const { restore } = stubFetch({ status: 200, body: '{"a":1}' })
   try {
